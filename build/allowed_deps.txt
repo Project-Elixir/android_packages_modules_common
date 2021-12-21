@@ -13,6 +13,7 @@
 # See go/apex-allowed-deps-error for more details.
 # TODO(b/157465465): introduce automated quality signals and remove this list.
 
+adbroot_aidl_interface-ndk(minSdkVersion:30)
 android.hardware.audio.common-V1-ndk(minSdkVersion:31)
 android.hardware.audio.common-V2-ndk(minSdkVersion:31)
 android.hardware.audio.common@5.0(minSdkVersion:30)
