@@ -55,7 +55,6 @@ readonly -a DEFAULT_MODULES=(
   com.android.resolv
   com.android.runtime
   com.android.sdkext
-  com.android.sepolicy
   # TODO(b/210694291): include tethering module in the build
   # com.android.tethering
   com.android.tzdata
@@ -133,6 +132,7 @@ function build_modules() {
     MODULE_BUILD_FROM_SOURCE=true \
     ${extra_build_params} \
     "${RUN_ERROR_PRONE:+"RUN_ERROR_PRONE=true"}" \
+    "${CHECK_API:+"checkapi"}" \
     apps_only \
     dist \
     lint-check

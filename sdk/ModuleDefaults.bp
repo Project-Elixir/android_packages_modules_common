@@ -17,39 +17,6 @@ package {
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
-mainline_stubs_args =
-    "--error UnhiddenSystemApi " +
-    "--hide CallbackInterface " +
-    "--hide HiddenTypedefConstant " +
-    "--hide RequiresPermission " +
-    "--enhance-documentation "
-
-// TODO: remove the hiding when server classes are cleaned up.
-mainline_framework_stubs_args =
-    mainline_stubs_args +
-    "--hide-package com.android.server "
-
-priv_apps = " " +
-    "--show-annotation android.annotation.SystemApi\\(" +
-        "client=android.annotation.SystemApi.Client.PRIVILEGED_APPS" +
-    "\\) "
-
-module_libs = " " +
-    " --show-annotation android.annotation.SystemApi\\(" +
-        "client=android.annotation.SystemApi.Client.MODULE_LIBRARIES" +
-    "\\)" +
-    " --show-for-stub-purposes-annotation android.annotation.SystemApi\\(" +
-        "client=android.annotation.SystemApi.Client.PRIVILEGED_APPS" +
-    "\\) "
-
-mainline_service_stubs_args =
-    mainline_stubs_args +
-    "--show-annotation android.annotation.SystemApi\\(" +
-        "client=android.annotation.SystemApi.Client.SYSTEM_SERVER" +
-    "\\) " +
-    "--hide-annotation android.annotation.Hide " +
-    "--hide InternalClasses " // com.android.* classes are okay in this interface
-
 // Defaults common to all mainline module java_sdk_library instances.
 java_defaults {
     name: "framework-module-common-defaults",
@@ -78,6 +45,7 @@ java_defaults {
     // TODO(b/156126315) - Remove when no longer needed.
     api_lint: {
         enabled: true,
+        legacy_errors_allowed: false,
     },
 
     // The API scope specific properties.
@@ -91,7 +59,12 @@ java_defaults {
     installable: false,
 
     // Configure framework module specific metalava options.
-    droiddoc_options: [mainline_stubs_args],
+    droiddoc_options: [
+        "--error UnhiddenSystemApi",
+        "--error UnflaggedApi",
+        "--hide CallbackInterface",
+        "--enhance-documentation",
+    ],
 
     annotations_enabled: true,
 
@@ -133,6 +106,8 @@ java_defaults {
     },
 
     defaults_visibility: [
+        "//frameworks/base",
+        "//frameworks/base/api",
         "//packages/modules/Virtualization:__subpackages__",
     ],
 }
@@ -159,6 +134,8 @@ java_defaults {
 
     defaults_visibility: [
         ":__subpackages__",
+        // TODO(b/237461653): Move this to packages/modules/Nfc
+        "//frameworks/base/core/java",
         "//frameworks/base/apex:__subpackages__",
         "//frameworks/base/libs/hwui",
         "//frameworks/base/wifi",
@@ -193,40 +170,6 @@ java_defaults {
     ],
 }
 
-stubs_defaults {
-    name: "service-module-stubs-srcs-defaults",
-    args: mainline_service_stubs_args,
-    installable: false,
-    annotations_enabled: true,
-    merge_annotations_dirs: [
-        "metalava-manual",
-    ],
-    filter_packages: ["com.android."],
-    check_api: {
-        current: {
-            api_file: "api/current.txt",
-            removed_api_file: "api/removed.txt",
-        },
-        api_lint: {
-            enabled: true,
-        },
-    },
-    dist: {
-        targets: ["sdk"],
-        dir: "apistubs/android/system-server/api",
-    },
-}
-
-// Empty for now, but a convenient place to add rules for all
-// module java_library system_server stub libs.
-java_defaults {
-    name: "service-module-stubs-defaults",
-    dist: {
-        targets: ["sdk"],
-        dir: "apistubs/android/system-server",
-    },
-}
-
 filegroup_defaults {
     name: "framework-sources-module-defaults",
     visibility: [
@@ -239,7 +182,7 @@ filegroup_defaults {
 // These apex_defaults serve as a common place to add properties which should
 // affect all mainline modules.
 
-APEX_LOWEST_MIN_SDK_VERSION = "29"
+APEX_LOWEST_MIN_SDK_VERSION = "30"
 DCLA_MIN_SDK_VERSION = "31"
 
 apex_defaults {
@@ -251,7 +194,7 @@ apex_defaults {
 apex_defaults {
     name: "q-launched-apex-module",
     defaults: ["any-launched-apex-modules"],
-    min_sdk_version: "29",
+    min_sdk_version: APEX_LOWEST_MIN_SDK_VERSION,
     defaults_visibility: ["//visibility:public"],
 }
 
@@ -313,7 +256,6 @@ apex_defaults {
     name: "s-launched-apex-module",
     defaults: ["any-launched-apex-modules"],
     min_sdk_version: "31",
-    updatable: true,
     // Indicates that pre-installed version of this apex can be compressed.
     // Whether it actually will be compressed is controlled on per-device basis.
     compressible:true,
@@ -333,7 +275,6 @@ apex_defaults {
     defaults_visibility: ["//packages/modules:__subpackages__"],
 }
 
-
 apex_defaults {
     name: "u-launched-apex-module",
     defaults: ["any-launched-apex-modules"],
@@ -344,10 +285,20 @@ apex_defaults {
     defaults_visibility: ["//packages/modules:__subpackages__"],
 }
 
+apex_defaults {
+    name: "v-launched-apex-module",
+    defaults: ["any-launched-apex-modules"],
+    min_sdk_version: "VanillaIceCream",
+    // Indicates that pre-installed version of this apex can be compressed.
+    // Whether it actually will be compressed is controlled on per-device basis.
+    compressible: true,
+    defaults_visibility: ["//packages/modules:__subpackages__"],
+}
+
 library_linking_strategy_cc_defaults {
     name: "apex-lowest-min-sdk-version",
     defaults_visibility: [
-         "//system/core/libutils",
+         "//system/core/libutils:__subpackages__",
     ],
     min_sdk_version: APEX_LOWEST_MIN_SDK_VERSION,
     soong_config_variables: {

@@ -130,7 +130,11 @@ class FakeSnapshotBuilder(mm.SnapshotBuilder):
 
         for target_path in target_paths:
             os.makedirs(os.path.split(target_path)[0])
-            self.write_data_to_file(target_path, "")
+            if ".latest.extension_version" in target_path:
+                self.write_data_to_file(
+                    target_path, str(self.get_module_extension_version()))
+            else:
+               self.write_data_to_file(target_path, "")
 
         return target_dict
 
@@ -343,6 +347,11 @@ class TestProduceDist(unittest.TestCase):
             5,
             msg="The module extension version does not match the expected value."
         )
+        self.assertEqual(
+            json_data["last_finalized_version"],
+            5,
+            msg="The last finalized version does not match the expected value."
+        )
 
     def create_build_number_file(self):
         soong_dir = os.path.join(self.tmp_out_dir, "soong")
@@ -409,6 +418,84 @@ class TestProduceDist(unittest.TestCase):
                 ],
             ),
         ], snapshot_builder.snapshots)
+
+    def test_generate_sdk_supported_modules_file(self):
+        subprocess_runner = mm.SubprocessRunner()
+        snapshot_builder = FakeSnapshotBuilder(
+            tool_path="path/to/mainline_modules_sdks.sh",
+            subprocess_runner=subprocess_runner,
+            out_dir=self.tmp_out_dir,
+        )
+        producer = mm.SdkDistProducer(
+            subprocess_runner=subprocess_runner,
+            snapshot_builder=snapshot_builder,
+            dist_dir=self.tmp_dist_dir,
+        )
+        producer = mm.SdkDistProducer(
+            subprocess_runner=subprocess_runner,
+            snapshot_builder=snapshot_builder,
+            dist_dir=self.tmp_dist_dir,
+        )
+
+        # Contains only sdk modules.
+        modules = [
+            MAINLINE_MODULES_BY_APEX["com.android.adservices"],
+            MAINLINE_MODULES_BY_APEX["com.android.art"],
+            MAINLINE_MODULES_BY_APEX["com.android.mediaprovider"],
+        ]
+        producer.dist_generate_sdk_supported_modules_file(modules)
+        with open(os.path.join(self.tmp_dist_dir, "sdk-modules.txt"), "r",
+                  encoding="utf8") as sdk_modules_file:
+            sdk_modules = sdk_modules_file.readlines()
+
+        self.assertTrue("com.google.android.adservices\n" in sdk_modules)
+        self.assertTrue("com.google.android.art\n" in sdk_modules)
+        self.assertTrue("com.google.android.mediaprovider\n" in sdk_modules)
+
+        # Contains only non-sdk modules.
+        modules = [
+            mm.MainlineModule(
+                apex="com.android.adbd",
+                sdks=[],
+                first_release="",
+            ),
+            mm.MainlineModule(
+                apex="com.android.adbd",
+                sdks=[],
+                first_release="",
+            ),
+        ]
+        producer.dist_generate_sdk_supported_modules_file(modules)
+        with open(os.path.join(self.tmp_dist_dir, "sdk-modules.txt"), "r",
+                  encoding="utf8") as sdk_modules_file:
+            sdk_modules = sdk_modules_file.readlines()
+
+        self.assertEqual(len(sdk_modules), 0)
+
+        # Contains mixture of sdk and non-sdk modules.
+        modules = [
+            MAINLINE_MODULES_BY_APEX["com.android.adservices"],
+            MAINLINE_MODULES_BY_APEX["com.android.mediaprovider"],
+            mm.MainlineModule(
+                apex="com.android.adbd",
+                sdks=[],
+                first_release="",
+            ),
+            mm.MainlineModule(
+                apex="com.android.adbd",
+                sdks=[],
+                first_release="",
+            ),
+        ]
+        producer.dist_generate_sdk_supported_modules_file(modules)
+        with open(os.path.join(self.tmp_dist_dir, "sdk-modules.txt"), "r",
+                  encoding="utf8") as sdk_modules_file:
+            sdk_modules = sdk_modules_file.readlines()
+
+        self.assertTrue("com.google.android.adservices\n" in sdk_modules)
+        self.assertTrue("com.google.android.mediaprovider\n" in sdk_modules)
+        self.assertFalse("com.google.android.adbd\n" in sdk_modules)
+        self.assertFalse("com.google.android.extservices\n" in sdk_modules)
 
 
 def path_to_test_data(relative_path):
@@ -519,6 +606,21 @@ class TestAndroidBpTransformations(unittest.TestCase):
         transformations = module.transformations(mm.Tiramisu, mm.Sdk)
 
         self.apply_transformations(src, transformations, mm.Tiramisu, expected)
+
+    def test_optional_mainline_module_latest(self):
+        """Tests the transformations applied to an optional mainline sdk LATEST.
+
+        This uses wifi as an example of a optional mainline sdk. This checks
+        that the use_source_config_var property is inserted.
+        """
+        src = read_test_data("wifi_Android.bp.input")
+
+        expected = read_test_data("wifi_latest_Android.bp.expected")
+
+        module = MAINLINE_MODULES_BY_APEX["com.android.wifi"]
+        transformations = module.transformations(mm.LATEST, mm.Sdk)
+
+        self.apply_transformations(src, transformations, mm.LATEST, expected)
 
     def test_art(self):
         """Tests the transformations applied to a the ART mainline module.
